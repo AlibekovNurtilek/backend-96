@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import Optional
 from app.database.config import get_db
 from app.database.models import Sentence, Token
 from app.domain.tagging_schemas import (
@@ -23,28 +24,54 @@ class TaggingController:
         s_count, t_count = service.tag_and_store(payload.text)
         return TagTextResponse(message="Теггинг выполнен", sentences_created=s_count, tokens_created=t_count)
 
-    async def list_sentences(self, page: int, page_size: int, db: Session = Depends(get_db)) -> PaginatedSentencesResponse:
+    async def list_sentences(
+    self,
+    page: int,
+    page_size: int,
+    search: Optional[str],
+    status: Optional[int],
+    db: Session = Depends(get_db)
+) -> PaginatedSentencesResponse:
         if page < 1 or page_size < 1:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="page and page_size must be >= 1")
-        total_items = db.query(Sentence).count()
+
+        query = db.query(Sentence)
+
+        # Фильтр по статусу
+        if status is not None:
+            query = query.filter(Sentence.is_corrected == status)
+
+        # Поиск по тексту
+        if search:
+            query = query.filter(Sentence.text.ilike(f"%{search}%"))
+
+        total_items = query.count()
         total_pages = (total_items + page_size - 1) // page_size
         if total_pages == 0:
             total_pages = 1
         if page > total_pages and total_items > 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page out of range")
+
         offset = (page - 1) * page_size
         sentences = (
-            db.query(Sentence)
-            .order_by(Sentence.id.asc())
+            query.order_by(Sentence.id.asc())
             .limit(page_size)
             .offset(offset)
             .all()
         )
+
         items = [SentenceResponse.model_validate(s) for s in sentences]
+
         return PaginatedSentencesResponse(
-            meta=PageMeta(current_page=page, page_size=page_size, total_pages=total_pages, total_items=total_items),
+            meta=PageMeta(
+                current_page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                total_items=total_items
+            ),
             items=items,
         )
+
 
     async def get_sentence_with_tokens(self, sentence_id: int, db: Session = Depends(get_db)) -> SentenceWithTokensResponse:
         sentence = db.query(Sentence).filter(Sentence.id == sentence_id).first()
