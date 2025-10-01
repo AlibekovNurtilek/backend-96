@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 class UserBase(BaseModel):
     username: str
@@ -28,3 +28,15 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+
+class PageMeta(BaseModel):
+    current_page: int
+    page_size: int
+    total_pages: int
+    total_items: int
+
+
+class PaginatedUsersResponse(BaseModel):
+    meta: PageMeta
+    items: List[UserResponse]

@@ -5,6 +5,19 @@ from app.database.models import Sentence, Token
 
 TAGGER_URL = "http://80.72.180.130:8040/api/tagging"
 
+FEATURES_DICTIONARY = {
+    "NOUN": ["Case", "Number", "Poss"],
+    "PRON": ["Case", "Number", "PronType"],
+    "PROPN": ["Case", "Number"],
+    "ADJ": ["Degree", "AdjForm"],
+    "NUM": ["NumType"],
+    "VERB": ["Tense", "Person", "Number", "Mood", "Polarity", "Voice", "VerbForm"],
+    "ADV": ["AdvForm"],
+    "ATOOCH": ["Case", "Number", "Poss"],
+    "KTOOCH": ["Case", "Number", "Poss"]
+}
+
+
 class TaggingService:
     def __init__(self, db: Session):
         self.db = db
@@ -63,6 +76,9 @@ class TaggingService:
                     if '=' in item:
                         k, v = item.split('=', 1)
                         feats[k] = v
+            
+            # 🔹 Валидация отдельной функцией
+            feats = self._validate_feats(pos, xpos, feats)
 
             current_tokens.append({
                 'token_index': str(current_index),
@@ -112,3 +128,25 @@ class TaggingService:
 
         self.db.commit()
         return sentences_created, tokens_created
+
+
+    def _validate_feats(self, pos: str, xpos: str, feats: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
+        """Фильтрует feats на основе FEATURES_DICTIONARY, приводя всё к верхнему регистру."""
+        if not feats:
+            return None
+
+        pos_upper = pos.upper() if pos else ""
+        xpos_upper = xpos.upper() if xpos else ""
+
+        allowed_features = FEATURES_DICTIONARY.get(pos_upper)
+        if not allowed_features:
+            allowed_features = FEATURES_DICTIONARY.get(xpos_upper)
+
+        if allowed_features:
+            feats = {k: v for k, v in feats.items() if k.capitalize() in allowed_features}
+            if not feats:
+                return None
+            return feats
+        else:
+            # Если UPOS и XPOS нет в словаре → признаков быть не должно
+            return None

@@ -105,7 +105,7 @@ class TaggingController:
         if payload.sentence_text is not None:
             sentence.text = payload.sentence_text
         if payload.is_corrected is not None:
-            sentence.is_corrected = payload.is_corrected
+            sentence.is_corrected = 1
 
         if payload.tokens:
             # Update provided tokens by id
